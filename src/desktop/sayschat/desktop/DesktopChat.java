@@ -114,7 +114,7 @@ public final class DesktopChat extends JFrame {
         });
         addWindowListener(new WindowAdapter() {
             public void windowClosing(WindowEvent e) {
-                quit();
+                requestQuit();
             }
 
             /** 兜底：任何路径销毁窗口时都关闭连接，服务器会立即将该用户下线。 */
@@ -437,6 +437,27 @@ public final class DesktopChat extends JFrame {
         } catch (Exception ignored) {
         } finally {
             client.close();
+        }
+    }
+
+    /**
+     * 点击窗口关闭按钮时先确认；只有用户选择“是”才退出服务器并关闭客户端。
+     * 选择“否”时保持当前连接和窗口不变。
+     */
+    private void requestQuit() {
+        if (closed) {
+            client.close();
+            dispose();
+            return;
+        }
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "是否退出服务器？\n退出后你将下线，并关闭 SaysChatV4 客户端。",
+                "退出服务器",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE);
+        if (choice == JOptionPane.YES_OPTION) {
+            quit();
         }
     }
 
