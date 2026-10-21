@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="accent">#303F9F</color>
+    <color name="accent_dark">#1A237E</color>
+    <color name="accent_light">#E8EAF6</color>
+    <color name="page_bg">#F4F5F9</color>
+    <color name="text_primary">#222222</color>
+    <color name="text_secondary">#666666</color>
+    <color name="text_hint">#999999</color>
+    <color name="divider">#E6E6E6</color>
+    <color name="panel_header">#EEF0F8</color>
+    <color name="admin_color">#B26A00</color>
+    <color name="danger">#C62828</color>
+    <color name="success">#2E7D32</color>
+</resources>
