@@ -1,5 +1,7 @@
 # SaysChatV4 加密聊天频道
 
+浪费Token使用DeepSeek v4.1 Flash Max写的
+
 SaysChatV4 是一个基于 **TCP** 的加密聊天频道，由 **服务器端 + 电脑客户端（Swing）+ 安卓客户端** 三部分组成。
 服务器端与电脑客户端使用纯 **Java 8** 编写，安卓端同样使用 Java 8 语法和 Android 平台 API，无任何第三方运行时依赖。
 
