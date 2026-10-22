@@ -11,7 +11,7 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * SaysChatV4 加密工具。
+ * SaysChatV4.1.0 加密工具。
  *
  * <p>连接密钥：由“连接密码 + 服务器随机盐”经 PBKDF2 派生。
  * 传输加密：AES-128-CBC + HMAC-SHA256（encrypt-then-MAC），带完整性校验。

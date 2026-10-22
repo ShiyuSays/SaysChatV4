@@ -24,6 +24,14 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.Reader;
+import java.io.Writer;
+import java.util.Properties;
 
 /**
  * 登录 / 注册窗口。
@@ -32,7 +40,13 @@ import java.awt.event.ActionListener;
 public final class DesktopLogin extends JFrame {
     private static final Color ACCENT = new Color(0x303F9F);
     private static final Color MUTED = new Color(0x777777);
-
+    private static final String PREF_HOST = "host";
+    private static final String PREF_PORT = "port";
+    private static final String PREF_CONNECTION_PASSWORD = "connectionPassword";
+    private static final String PREF_USERNAME = "username";
+    private static final String SETTINGS_DIR = ".sayschat-v4.1.0";
+    private static final String LEGACY_SETTINGS_DIR = ".sayschat-v4.0.1";
+    private static final String SETTINGS_FILE = "connection.properties";
     private final JTextField hostField = new JTextField(18);
     private final JTextField portField = new JTextField("10001", 6);
     private final JPasswordField connPwdField = new JPasswordField();
@@ -43,12 +57,21 @@ public final class DesktopLogin extends JFrame {
     private final JLabel statusLabel = new JLabel("请输入服务器信息", SwingConstants.CENTER);
 
     public DesktopLogin() {
-        super("SaysChatV4 - 登录");
+        super("SaysChatV4.1.0 - 登录");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        loadLastConnection();
         buildUi();
         pack();
         setLocationRelativeTo(null);
         setResizable(false);
+    }
+
+    /** 用于从聊天窗口返回登录页时显示提示。 */
+    void setStatusMessage(String message) {
+        if (message == null) return;
+        statusLabel.setText(message);
+        statusLabel.revalidate();
+        statusLabel.repaint();
     }
 
     private void buildUi() {
@@ -59,7 +82,7 @@ public final class DesktopLogin extends JFrame {
         JPanel header = new JPanel();
         header.setOpaque(false);
         header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
-        JLabel title = new JLabel("SaysChatV4");
+        JLabel title = new JLabel("SaysChatV4.1.0");
         title.setAlignmentX(CENTER_ALIGNMENT);
         title.setFont(title.getFont().deriveFont(Font.BOLD, 27f));
         title.setForeground(ACCENT);
@@ -92,7 +115,8 @@ public final class DesktopLogin extends JFrame {
         form.add(regBox, c);
 
         JLabel hint = new JLabel("<html><span style='color:#777777'>连接密码见服务器 "
-                + "sayschat-server.conf；注册只需勾选一次。</span></html>");
+                + "sayschat-server.conf；注册只需勾选一次。<br>"
+                + "自动记住上次服务器、连接密码和用户名（不保存账户密码）。</span></html>");
         hint.setFont(hint.getFont().deriveFont(Font.PLAIN, 11f));
         c.gridy = 6;
         form.add(hint, c);
@@ -170,6 +194,7 @@ public final class DesktopLogin extends JFrame {
                 try {
                     client = new SaysClient(host, port, connPwd);
                     client.login(user, pwd, register, "desktop");
+                    saveLastConnection(host, port, connPwd, client.user);
                     final SaysClient ready = client;
                     client = null;
                     SwingUtilities.invokeLater(new Runnable() {
@@ -201,6 +226,115 @@ public final class DesktopLogin extends JFrame {
     private void fail(String msg) {
         connectBtn.setEnabled(true);
         statusLabel.setText("<html>" + escape(msg) + "</html>");
+    }
+
+    /** 载入上次成功登录时的服务器、端口、连接密码和用户名（不包含账户密码）。 */
+    private void loadLastConnection() {
+        File file = lastConnectionFile();
+        migrateLegacySettings(file);
+        if (!file.isFile()) return;
+        Properties prefs = new Properties();
+        Reader reader = null;
+        try {
+            reader = new InputStreamReader(new FileInputStream(file), "UTF-8");
+            prefs.load(reader);
+            String host = prefs.getProperty(PREF_HOST, "");
+            String port = prefs.getProperty(PREF_PORT, "");
+            String connectionPassword = prefs.getProperty(PREF_CONNECTION_PASSWORD, "");
+            String username = prefs.getProperty(PREF_USERNAME, "");
+            if (!host.isEmpty()) hostField.setText(host);
+            if (!port.isEmpty()) portField.setText(port);
+            if (!connectionPassword.isEmpty()) connPwdField.setText(connectionPassword);
+            if (!username.isEmpty()) userField.setText(username);
+            if (!host.isEmpty()) {
+                statusLabel.setText("已载入上次连接信息（账户密码需重新输入）");
+            }
+        } catch (Exception ignored) {
+            // 配置文件损坏或无权限时按首次使用处理。
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (Exception ignored) {
+                }
+            }
+        }
+    }
+
+    /** 成功登录后保存连接信息；账户密码永不写入本地。 */
+    private static void saveLastConnection(String host, int port,
+                                           String connectionPassword, String username) {
+        Writer writer = null;
+        try {
+            File file = lastConnectionFile();
+            File dir = file.getParentFile();
+            if (dir != null && !dir.isDirectory() && !dir.mkdirs()) {
+                return;
+            }
+            Properties prefs = new Properties();
+            prefs.setProperty(PREF_HOST, host);
+            prefs.setProperty(PREF_PORT, String.valueOf(port));
+            prefs.setProperty(PREF_CONNECTION_PASSWORD, connectionPassword);
+            prefs.setProperty(PREF_USERNAME, username == null ? "" : username);
+            writer = new OutputStreamWriter(new FileOutputStream(file), "UTF-8");
+            prefs.store(writer,
+                    "SaysChatV4.1.0 last connection; account password is NOT stored");
+            writer.flush();
+        } catch (Exception ignored) {
+            // 保存失败不影响正常登录。
+        } finally {
+            if (writer != null) {
+                try {
+                    writer.close();
+                } catch (Exception ignored) {
+                }
+            }
+        }
+    }
+
+    private static File lastConnectionFile() {
+        File dir = new File(System.getProperty("user.home", "."), SETTINGS_DIR);
+        return new File(dir, SETTINGS_FILE);
+    }
+
+    /** 从 4.0.1 的设置目录复制一次连接信息，避免升级后丢失。 */
+    private static void migrateLegacySettings(File target) {
+        if (target.isFile()) return;
+        File legacy = new File(new File(System.getProperty("user.home", "."),
+                LEGACY_SETTINGS_DIR), SETTINGS_FILE);
+        if (!legacy.isFile()) return;
+        File dir = target.getParentFile();
+        if (dir != null && !dir.isDirectory() && !dir.mkdirs()) return;
+        FileInputStream in = null;
+        FileOutputStream out = null;
+        try {
+            in = new FileInputStream(legacy);
+            out = new FileOutputStream(target);
+            byte[] buffer = new byte[4096];
+            int n;
+            while ((n = in.read(buffer)) > 0) {
+                out.write(buffer, 0, n);
+            }
+            out.flush();
+        } catch (Exception e) {
+            try {
+                target.delete();
+            } catch (Exception ignored) {
+            }
+        } finally {
+            if (in != null) {
+                try {
+                    in.close();
+                } catch (Exception ignored) {
+                }
+            }
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (Exception ignored) {
+                }
+            }
+        }
     }
 
     static String friendly(Exception e) {

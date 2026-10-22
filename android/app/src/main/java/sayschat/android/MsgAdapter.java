@@ -7,6 +7,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import java.text.SimpleDateFormat;
@@ -19,12 +20,15 @@ public final class MsgAdapter extends BaseAdapter {
     private final LayoutInflater inflater;
     private final List<ChatMsg> list;
     private final int helpColor;
+    private final int attachmentColor;
     private final SimpleDateFormat tf = new SimpleDateFormat("HH:mm", Locale.getDefault());
+    private final SimpleDateFormat hf = new SimpleDateFormat("MM-dd HH:mm", Locale.getDefault());
 
     public MsgAdapter(Context context, List<ChatMsg> list) {
         this.inflater = LayoutInflater.from(context);
         this.list = list;
         this.helpColor = context.getResources().getColor(R.color.success);
+        this.attachmentColor = context.getResources().getColor(R.color.attachment_color);
     }
 
     @Override
@@ -51,6 +55,11 @@ public final class MsgAdapter extends BaseAdapter {
         ChatMsg m = list.get(position);
         TextView header = (TextView) view.findViewById(R.id.tvHeader);
         TextView body = (TextView) view.findViewById(R.id.tvBody);
+        ImageView attachment = (ImageView) view.findViewById(R.id.ivAttachment);
+        attachment.setVisibility(View.GONE);
+        attachment.setImageDrawable(null);
+        // 文件消息需要让 ListView 收到点击以打开保存位置；普通文本保持可选中复制。
+        body.setTextIsSelectable(m.kind != ChatMsg.KIND_FILE);
 
         if (m.kind == ChatMsg.KIND_HELP) {
             header.setVisibility(View.GONE);
@@ -71,11 +80,21 @@ public final class MsgAdapter extends BaseAdapter {
         }
 
         header.setVisibility(View.VISIBLE);
-        header.setText("[" + tf.format(new Date(m.timestamp)) + "] " + m.header);
+        header.setText("[" + (m.historical ? hf : tf).format(new Date(m.timestamp))
+                + "] " + m.header);
         header.setTextColor(Color.rgb(0x88, 0x88, 0x88));
         body.setText(m.body);
         body.setTextSize(15f);
         body.setTypeface(Typeface.DEFAULT);
+        if (m.kind == ChatMsg.KIND_FILE) {
+            body.setTextColor(attachmentColor);
+            body.setTextSize(14f);
+            if (m.thumbnail != null) {
+                attachment.setVisibility(View.VISIBLE);
+                attachment.setImageBitmap(m.thumbnail);
+            }
+            return view;
+        }
         switch (m.kind) {
             case ChatMsg.KIND_SELF:
                 body.setTextColor(Color.rgb(0x15, 0x65, 0xC0));

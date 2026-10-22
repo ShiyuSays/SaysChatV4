@@ -1,20 +1,24 @@
 package sayschat.server;
 
 import sayschat.common.Crypto;
+import sayschat.common.FileTransfer;
 import sayschat.common.FrameIO;
 import sayschat.common.Json;
 import sayschat.common.SaysClient;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.security.GeneralSecurityException;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 每个客户端连接对应一个处理线程：
@@ -35,6 +39,8 @@ public final class ClientHandler extends Thread {
     volatile boolean muted;      // 会话级禁言
     volatile String device = "unknown";
     private volatile boolean closed;
+    /** 最后一次收到客户端消息的单调时间；用于挂机踢出。 */
+    private volatile long lastActivityNanos;
 
     ClientHandler(SaysChatServer server, Socket socket) throws IOException {
         super("client-" + socket.getInetAddress().getHostAddress());
@@ -137,6 +143,8 @@ public final class ClientHandler extends Thread {
             if (register) {
                 if (account != null) {
                     reason = "该用户名已被注册，请直接登录";
+                } else if (server.ipAccountCount(ip()) >= server.config.ipAccountLimit) {
+                    reason = ipLimitMessage();
                 } else if (server.isFull()) {
                     // 满员时不创建新账户，避免“注册成功却登录失败”的困惑。
                     reason = server.capacityMessage();
@@ -173,6 +181,8 @@ public final class ClientHandler extends Thread {
                 reason = "您已被封禁，无法登录";
             } else if (server.clients.containsKey(user)) {
                 reason = "该用户已在线，不能重复登录";
+            } else if (server.ipAccountCount(ip()) >= server.config.ipAccountLimit) {
+                reason = ipLimitMessage();
             } else if (server.clients.size() >= server.config.maxOnline) {
                 reason = server.capacityMessage();
             } else {
@@ -207,7 +217,13 @@ public final class ClientHandler extends Thread {
         auth.put("admin", Boolean.valueOf(admin));
         auth.put("allMuted", Boolean.valueOf(server.allMuted));
         auth.put("users", server.snapshotUsers());
+        lastActivityNanos = System.nanoTime();
         send(auth);
+
+        Map<String, Object> history = new LinkedHashMap<String, Object>();
+        history.put("t", "history");
+        history.put("entries", server.archive.historyFor(name));
+        send(history);
 
         server.log("[上线] " + name + (admin ? "[管理员]" : "") + " 来自 "
                 + ip() + ":" + port() + " (" + device + ")");
@@ -252,12 +268,17 @@ public final class ClientHandler extends Thread {
                 sendSys("消息格式错误，已忽略");
                 continue;
             }
+            lastActivityNanos = System.nanoTime();
             String type = Json.str(m, "t");
             try {
                 if ("chat".equals(type)) {
                     handleChat(Json.str(m, "msg"));
+                } else if ("file".equals(type)) {
+                    handleFile(m);
                 } else if ("tell".equals(type)) {
                     handleTell(Json.str(m, "to"), Json.str(m, "msg"));
+                } else if ("passwd".equals(type)) {
+                    handleChangePassword(Json.str(m, "old"), Json.str(m, "new"));
                 } else if ("cmd".equals(type)) {
                     handleCommand(Json.str(m, "cmd"), Json.str(m, "arg"));
                 } else if ("quit".equals(type)) {
@@ -291,7 +312,92 @@ public final class ClientHandler extends Thread {
         m.put("admin", Boolean.valueOf(admin));
         m.put("msg", msg);
         server.broadcast(m);
+        server.archive.chat(name, admin, msg);
         server.log("[聊天] " + name + ": " + oneLine(msg));
+    }
+
+    /** 图片/文件消息：校验后保存到服务器 SaysChat 目录，再转发给所有在线用户。 */
+    private void handleFile(Map<String, Object> m) {
+        if (muted) {
+            sendSys("您已被禁言，无法发送图片或文件");
+            return;
+        }
+        if (server.allMuted && !admin) {
+            sendSys("当前为全员禁言状态，只有管理员可以发送图片或文件");
+            return;
+        }
+        String kind = Json.str(m, "kind");
+        if (!"image".equals(kind) && !"file".equals(kind)) {
+            sendSys("附件类型不合法");
+            return;
+        }
+        String fileName = sanitizeFileName(Json.str(m, "name"));
+        if (fileName == null) {
+            sendSys("附件文件名不合法");
+            return;
+        }
+        String mime = sanitizeMime(Json.str(m, "mime"), "image".equals(kind));
+        if (mime == null) {
+            sendSys("附件 MIME 类型不合法");
+            return;
+        }
+        String caption = Json.str(m, "msg");
+        if (caption == null) caption = "";
+        caption = caption.trim();
+        if (caption.length() > FileTransfer.MAX_CAPTION_CHARS) {
+            sendSys("附件说明过长（最多 " + FileTransfer.MAX_CAPTION_CHARS + " 字符）");
+            return;
+        }
+        String data = Json.str(m, "data");
+        if (data == null || data.isEmpty()) {
+            sendSys("附件内容为空");
+            return;
+        }
+        if (data.length() > FileTransfer.MAX_BASE64_CHARS + 8) {
+            sendSys("附件过大（最多 " + (FileTransfer.MAX_FILE_BYTES / 1024 / 1024) + " MB）");
+            return;
+        }
+        byte[] bytes;
+        try {
+            bytes = Base64.getDecoder().decode(data);
+        } catch (IllegalArgumentException e) {
+            sendSys("附件数据编码错误");
+            return;
+        }
+        if (bytes.length == 0) {
+            sendSys("附件内容为空");
+            return;
+        }
+        if (bytes.length > FileTransfer.MAX_FILE_BYTES) {
+            sendSys("附件过大（最多 " + (FileTransfer.MAX_FILE_BYTES / 1024 / 1024) + " MB）");
+            return;
+        }
+
+        File saved;
+        try {
+            saved = server.archive.saveAttachment("image".equals(kind), fileName, bytes);
+        } catch (IOException e) {
+            sendSys("服务器保存附件失败，未发送: " + e.getMessage());
+            return;
+        }
+        server.archive.file(name, admin, "image".equals(kind), fileName,
+                bytes.length, caption, saved);
+
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        out.put("t", "file");
+        out.put("id", UUID.randomUUID().toString());
+        out.put("from", name);
+        out.put("admin", Boolean.valueOf(admin));
+        out.put("kind", kind);
+        out.put("name", fileName);
+        out.put("mime", mime);
+        out.put("size", Integer.valueOf(bytes.length));
+        out.put("msg", caption);
+        out.put("data", Base64.getEncoder().encodeToString(bytes));
+        server.broadcast(out);
+        server.log("[文件] " + name + " -> 全体: " + fileName
+                + " (" + formatBytes(bytes.length) + ") -> "
+                + server.archive.relativePath(saved));
     }
 
     private void handleTell(String to, String msg) {
@@ -319,7 +425,37 @@ public final class ClientHandler extends Thread {
         m.put("msg", msg);
         target.send(m);
         if (target != this) send(m); // 回显给发送者
+        server.archive.tell(name, to, msg);
         server.log("[私聊] " + name + " -> " + to + ": " + oneLine(msg));
+    }
+
+    /** 登录用户修改自己的账户密码；密码只经加密连接传输，服务端只保存新哈希。 */
+    private void handleChangePassword(String oldPassword, String newPassword) {
+        if (oldPassword == null || oldPassword.isEmpty()
+                || newPassword == null || newPassword.isEmpty()) {
+            sendSys("修改密码需要填写原密码和新密码");
+            return;
+        }
+        if (oldPassword.length() > MAX_LOGIN_PASSWORD) {
+            sendSys("原密码错误，密码未修改");
+            return;
+        }
+        if (newPassword.length() > MAX_LOGIN_PASSWORD) {
+            sendSys("新密码过长（最多 " + MAX_LOGIN_PASSWORD + " 个字符）");
+            return;
+        }
+        if (!server.accounts.checkPassword(name, oldPassword)) {
+            sendSys("原密码错误，密码未修改");
+            return;
+        }
+        try {
+            server.accounts.changePassword(name, newPassword);
+        } catch (IOException e) {
+            sendSys("密码修改失败: " + e.getMessage());
+            return;
+        }
+        sendSys("密码修改成功，下次登录请使用新密码");
+        server.log("[安全] " + name + " 修改了账户密码");
     }
 
     private void handleCommand(String cmd, String arg) {
@@ -379,6 +515,21 @@ public final class ClientHandler extends Thread {
         close();
     }
 
+    /** 由服务器挂机检查线程调用；超过配置时间未发送任何消息则踢出。 */
+    void kickIfIdle(long nowNanos, long timeoutNanos, int idleMinutes) {
+        if (closed || name == null || timeoutNanos <= 0) return;
+        long last = lastActivityNanos;
+        if (last == 0L || nowNanos - last < timeoutNanos) return;
+        if (closed) return;
+        kickOut("已连续 " + idleMinutes + " 分钟未发言，被服务器自动踢出");
+        server.log("[挂机] " + name + " 连续 " + idleMinutes + " 分钟未发言，已自动踢出");
+    }
+
+    private String ipLimitMessage() {
+        return "同一 IP 最多同时登录 " + server.config.ipAccountLimit
+                + " 个账户，请稍后再试";
+    }
+
     void close() {
         synchronized (this) {
             if (closed) return;
@@ -415,6 +566,62 @@ public final class ClientHandler extends Thread {
             }
         }
         return t;
+    }
+
+    /** 只保留文件名本身，去掉路径、控制字符和跨平台非法字符。 */
+    private static String sanitizeFileName(String raw) {
+        if (raw == null) return null;
+        String s = raw.replace('\\', '/');
+        int slash = s.lastIndexOf('/');
+        if (slash >= 0) s = s.substring(slash + 1);
+        s = s.trim();
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (Character.isISOControl(c)) continue;
+            if (c == '<' || c == '>' || c == ':' || c == '"' || c == '|'
+                    || c == '?' || c == '*') {
+                b.append('_');
+            } else {
+                b.append(c);
+            }
+        }
+        s = b.toString().trim();
+        if (s.isEmpty() || ".".equals(s) || "..".equals(s)) return null;
+        if (s.length() > FileTransfer.MAX_FILE_NAME_CHARS) {
+            int dot = s.lastIndexOf('.');
+            if (dot > 0 && s.length() - dot <= 16) {
+                String ext = s.substring(dot);
+                s = s.substring(0, FileTransfer.MAX_FILE_NAME_CHARS - ext.length()) + ext;
+            } else {
+                s = s.substring(0, FileTransfer.MAX_FILE_NAME_CHARS);
+            }
+        }
+        return s;
+    }
+
+    private static String sanitizeMime(String raw, boolean image) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return image ? "image/jpeg" : "application/octet-stream";
+        }
+        String s = raw.trim();
+        if (s.length() > 80) return null;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c <= 0x20 || c >= 0x7f || c == '"' || c == '\\'
+                    || c == '<' || c == '>') {
+                return null;
+            }
+        }
+        if (image && !s.startsWith("image/")) return null;
+        return s;
+    }
+
+    private static String formatBytes(int n) {
+        if (n < 1024) return n + " B";
+        if (n < 1024 * 1024) return ((n + 511) / 1024) + " KB";
+        int scaled = (n % (1024 * 1024)) * 10 / (1024 * 1024);
+        return (n / (1024 * 1024)) + "." + scaled + " MB";
     }
 
     private static String sanitizeDevice(String dev) {

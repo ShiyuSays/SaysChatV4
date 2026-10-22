@@ -98,7 +98,7 @@ public final class SaysClient {
         readFully(hello);
         for (int i = 0; i < PROTOCOL_MAGIC.length(); i++) {
             if (hello[i] != (byte) PROTOCOL_MAGIC.charAt(i)) {
-                throw new IOException("目标不是 SaysChatV4 服务器");
+                throw new IOException("目标不是 SaysChatV4.1.0 服务器");
             }
         }
         byte[] salt = new byte[16];

@@ -1,12 +1,12 @@
 #!/bin/bash
 # ============================================================
-#  SaysChatV4 安卓 APK 手动构建 (Linux / macOS，无需 Gradle)
+#  SaysChatV4.1.0 安卓 APK 手动构建 (Linux / macOS，无需 Gradle)
 #  要求: JDK 8+、Android SDK 的 build-tools 与 platform
 #        build-tools 31+ 的 d8 / apksigner 需要 JDK 11+（推荐 17）
 #  用法:
 #    export ANDROID_SDK_ROOT=/path/to/android-sdk
 #    ./build-apk.sh
-#  产出: dist/SaysChatV4.apk（debug 签名，可直接安装）
+#  产出: dist/SaysChatV4.1.0.apk（debug 签名，可直接安装）
 # ============================================================
 set -e
 cd "$(dirname "$0")"
@@ -38,15 +38,15 @@ APP=android/app
 OUT=dist
 rm -rf build-apk
 mkdir -p build-apk/gen build-apk/classes build-apk/dex "$OUT"
-rm -f "$OUT/SaysChatV4.apk" "$OUT/SaysChatV4-unsigned.apk" "$OUT/SaysChatV4-aligned.apk"
+rm -f "$OUT/SaysChatV4.1.0.apk" "$OUT/SaysChatV4.1.0-unsigned.apk" "$OUT/SaysChatV4.1.0-aligned.apk"
 
 echo "[1/5] 编译 Android 资源 (aapt2)..."
 "$AAPT2" compile --dir "$APP/src/main/res" -o build-apk/res.zip
 "$AAPT2" link -I "$PF/android.jar" \
     --manifest "$APP/src/main/AndroidManifest.xml" \
     --min-sdk-version 21 --target-sdk-version 30 \
-    --version-code 4 --version-name 4.0 \
-    --java build-apk/gen -o "$OUT/SaysChatV4-unsigned.apk" build-apk/res.zip
+    --version-code 11 --version-name 4.1.0 \
+    --java build-apk/gen -o "$OUT/SaysChatV4.1.0-unsigned.apk" build-apk/res.zip
 
 echo "[2/5] 编译 Java 源码 (javac)..."
 find "$APP/src/main/java" src/common build-apk/gen -name '*.java' -print > build-apk/sources.txt
@@ -60,11 +60,11 @@ echo "[3/5] dex 转换 (d8)..."
 
 echo "[4/5] 打包 + 对齐..."
 if command -v zip >/dev/null 2>&1; then
-    (cd build-apk/dex && zip -q -X "../../$OUT/SaysChatV4-unsigned.apk" classes.dex)
+    (cd build-apk/dex && zip -q -X "../../$OUT/SaysChatV4.1.0-unsigned.apk" classes.dex)
 else
-    (cd build-apk/dex && jar uf "../../$OUT/SaysChatV4-unsigned.apk" classes.dex)
+    (cd build-apk/dex && jar uf "../../$OUT/SaysChatV4.1.0-unsigned.apk" classes.dex)
 fi
-"$ZIPALIGN" -f 4 "$OUT/SaysChatV4-unsigned.apk" "$OUT/SaysChatV4-aligned.apk"
+"$ZIPALIGN" -f 4 "$OUT/SaysChatV4.1.0-unsigned.apk" "$OUT/SaysChatV4.1.0-aligned.apk"
 
 echo "[5/5] 签名 (debug 密钥)..."
 KEYSTORE=android/signing/debug.keystore
@@ -76,8 +76,8 @@ if [ ! -f "$KEYSTORE" ]; then
 fi
 "$APKSIGNER" sign --ks "$KEYSTORE" \
     --ks-pass pass:android --key-pass pass:android \
-    --out "$OUT/SaysChatV4.apk" "$OUT/SaysChatV4-aligned.apk"
-"$APKSIGNER" verify "$OUT/SaysChatV4.apk"
-rm -f "$OUT/SaysChatV4-unsigned.apk" "$OUT/SaysChatV4-aligned.apk" "$OUT/SaysChatV4.apk.idsig"
+    --out "$OUT/SaysChatV4.1.0.apk" "$OUT/SaysChatV4.1.0-aligned.apk"
+"$APKSIGNER" verify "$OUT/SaysChatV4.1.0.apk"
+rm -f "$OUT/SaysChatV4.1.0-unsigned.apk" "$OUT/SaysChatV4.1.0-aligned.apk" "$OUT/SaysChatV4.1.0.apk.idsig"
 
-echo "构建完成: $OUT/SaysChatV4.apk"
+echo "构建完成: $OUT/SaysChatV4.1.0.apk"

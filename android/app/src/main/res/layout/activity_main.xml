@@ -35,7 +35,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="加密聊天频道 · TCP"
+                android:text="加密聊天频道 · TCP · v4.1.0"
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
 
@@ -172,7 +172,7 @@
                 android:layout_marginTop="18dp"
                 android:gravity="center"
                 android:lineSpacingExtra="3dp"
-                android:text="连接与消息全程使用 AES/HMAC 加密\n账户密码仅以 PBKDF2 哈希保存在服务器"
+                android:text="连接与消息全程使用 AES/HMAC 加密\n账户密码仅以 PBKDF2 哈希保存在服务器\n自动记住上次服务器、连接密码和用户名（不保存账户密码）"
                 android:textColor="@color/text_hint"
                 android:textSize="11sp" />
         </LinearLayout>
@@ -209,7 +209,7 @@
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
                     android:singleLine="true"
-                    android:text="SaysChatV4"
+                    android:text="SaysChatV4.1.0"
                     android:textColor="#FFFFFF"
                     android:textSize="17sp"
                     android:textStyle="bold" />
@@ -327,6 +327,22 @@
                     android:divider="@color/divider"
                     android:dividerHeight="1px"
                     android:paddingBottom="8dp" />
+
+                <Button
+                    android:id="@+id/btnChangePwd"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginLeft="10dp"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginRight="10dp"
+                    android:layout_marginBottom="10dp"
+                    android:background="@drawable/bg_button_secondary"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:text="修改密码"
+                    android:textAllCaps="false"
+                    android:textColor="@color/accent"
+                    android:textSize="13sp" />
             </LinearLayout>
         </FrameLayout>
 
@@ -341,6 +357,19 @@
             android:paddingTop="7dp"
             android:paddingRight="8dp"
             android:paddingBottom="7dp">
+
+            <Button
+                android:id="@+id/btnAttach"
+                android:layout_width="56dp"
+                android:layout_height="44dp"
+                android:layout_marginRight="6dp"
+                android:background="@drawable/bg_button_secondary"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="附件"
+                android:textAllCaps="false"
+                android:textColor="@color/accent"
+                android:textSize="13sp" />
 
             <EditText
                 android:id="@+id/etInput"

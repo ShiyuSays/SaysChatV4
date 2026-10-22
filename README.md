@@ -1,9 +1,7 @@
-# SaysChatV4 加密聊天频道
+# SaysChatV4.1.0 加密聊天频道
 
-DeepSeekV4写的浪费Token写的
-
-SaysChatV4 是一个基于 **TCP** 的加密聊天频道，由 **服务器端 + 电脑客户端（Swing）+ 安卓客户端** 三部分组成。
-服务器端与电脑客户端使用纯 **Java 8** 编写，安卓端同样使用 Java 8 语法和 Android 平台 API，无任何第三方运行时依赖。
+SaysChatV4.1.0 是一个基于 **TCP** 的加密聊天频道，由 **服务器端 + 电脑客户端（Swing）+ 安卓客户端** 三部分组成。
+服务器端与电脑客户端使用纯 **Java 8** 编写，安卓端同样使用 Java 8 语法和 Android 平台 API，无任何第三方运行时依赖，支持文字、图片和文件消息。
 
 - 服务端默认监听 **TCP 10001**
 - 首次启动自动在当前工作目录生成 `sayschat-server.conf`（端口 + 连接密码 + 最大在线人数）
@@ -15,16 +13,22 @@ SaysChatV4 是一个基于 **TCP** 的加密聊天频道，由 **服务器端 + 
 
 | 功能 | 说明 |
 | --- | --- |
-| 注册 / 登录 | 客户端填写服务器 IP/域名、端口、连接密码、用户名、账户密码；首次使用勾选注册 |
+| 注册 / 登录 | 客户端填写服务器 IP/域名、端口、连接密码、用户名、账户密码；首次使用勾选注册。成功登录后记住服务器、端口、连接密码和用户名（不保存账户密码） |
 | 加密传输 | 连接密码派生会话密钥，AES-128-CBC + HMAC-SHA256（encrypt-then-MAC） |
 | 密码保护 | 账户密码只保存 PBKDF2 加盐哈希，服务器不保存账户密码明文 |
 | 公聊 / 私聊 | 公聊广播；所有登录用户都可使用 `/tell 用户名 内容` 私聊 |
+| 图片 / 文件 | 电脑端可点“图片/文件”选择，或把单个图片/文件**拖入窗口**；先进待发送栏，点“发送附件”才真正发送。安卓端通过“附件”选择 |
 | 在线用户栏 | 电脑端右侧固定栏、安卓端左侧折叠栏；实时显示加入、离开和权限变化 |
+| 历史同步 | 登录后自动显示服务器保存的最近 200 条可见记录；私聊只同步给双方，附件记录只显示元数据 |
 | 人数上限 | `maxOnline` 配置最大同时在线人数，满员时拒绝新登录，有人下线后自动释放名额 |
+| 挂机踢出 | `idleMinutes` 配置连续多少分钟未发送任何消息自动踢出，默认 5 分钟，0 可关闭 |
+| 同 IP 限制 | `ipAccountLimit` 配置同一 IP 最多同时登录的账户数，默认 3 |
 | 管理员头衔 | 用户栏与聊天消息中均显示 `用户名[管理员]` |
 | 管理命令 | 踢人、封禁/解封、查 IP、公告、单人禁言/解禁、全员禁言/解禁、授予/撤销管理员 |
+| 修改密码 | 登录后在电脑端右侧用户栏底部、安卓端左侧折叠栏底部点“修改密码”，输入原密码和新密码 |
+| 提示音 | 收到公告、私聊或被 `@用户名` 时，电脑端播放系统提示音，安卓端播放系统通知音 |
 | 服务器控制台 | 管理员命令全部可用；另有 `/stop` 关闭服务器、`/list` 查看在线列表 |
-| 数据持久化 | 账户、密码哈希、管理员标记、封禁标记保存到 `sayschat-accounts.dat` |
+| 数据持久化 | 账户/密码哈希/管理员/封禁写入 `sayschat-accounts.dat`；聊天记录和附件写入 `SaysChat/` |
 | 跨平台 | 服务端/桌面端 jar 可运行于 Windows、Linux、macOS；安卓 APK 最低 Android 5.0（API 21） |
 
 ## 二、目录与构建产物
@@ -38,9 +42,9 @@ SaysChat/
 ├── android/         安卓工程（可用 Android Studio 打开）
 ├── tools/           开发测试工具（SmokeTest / Probe / SeedAdmin）
 ├── dist/
-│   ├── SaysChatV4-Server.jar     服务器端
-│   ├── SaysChatV4-Desktop.jar    电脑客户端
-│   ├── SaysChatV4.apk            安卓客户端（debug 签名，可直接安装）
+│   ├── SaysChatV4.1.0-Server.jar     服务器端
+│   ├── SaysChatV4.1.0-Desktop.jar    电脑客户端
+│   ├── SaysChatV4.1.0.apk            安卓客户端（debug 签名，可直接安装）
 │   └── SHA256SUMS.txt            构建产物 SHA-256 校验值
 ├── build.bat / build.sh           构建两个 jar
 ├── build-apk.bat / build-apk.sh   无需 Gradle 构建 APK
@@ -54,7 +58,7 @@ SaysChat/
 ### 1. 启动服务器
 
 ```bash
-java -jar dist/SaysChatV4-Server.jar
+java -jar dist/SaysChatV4.1.0-Server.jar
 ```
 
 首次启动会在**当前工作目录**生成：
@@ -63,15 +67,38 @@ java -jar dist/SaysChatV4-Server.jar
 port=10001
 password=首次启动随机生成的连接密码
 maxOnline=100
+idleMinutes=5
+ipAccountLimit=3
 ```
 
-控制台会同时打印端口、连接密码和最大同时在线人数。把连接密码告知客户端用户，然后启动客户端。再次启动直接读取该文件，修改后重启生效。
+控制台会同时打印端口、连接密码、最大同时在线人数、挂机踢出时间和同 IP 登录上限。把连接密码告知客户端用户，然后启动客户端。再次启动直接读取该文件，修改后重启生效。
 
 - `maxOnline`：最大**同时在线**人数，范围 1-10000，默认 100。达到上限后新登录会被拒绝（提示“服务器在线人数已满”）；已在线的用户不受影响，有人下线后名额自动释放。
-- 旧配置文件中没有 `maxOnline` 时，服务器使用默认值 100，并在启动日志中提示。
-- 该限制针对同时在线连接，不限制历史注册账户总数。
+- `idleMinutes`：连续多少分钟**没有发送任何消息**（公聊、私聊、图片/文件、命令均算活动）后自动踢出，范围 0-1440，默认 5；设为 0 可关闭挂机踢出。被踢客户端会收到“已连续 N 分钟未发言”的提示并返回登录页。
+- `ipAccountLimit`：同一 IP 最多同时登录的账户数，范围 1-1000，默认 3。达到上限后新的登录/注册会被拒绝，有人下线后名额自动释放。多个用户共用同一公网 IP（例如同一 NAT/公司网络）时会共同占用该额度，可按需调大。
+- 旧配置文件缺少 `idleMinutes` 或 `ipAccountLimit` 时，服务器使用默认值并自动把缺失项追加到配置文件。
+- 上述限制针对同时在线连接，不限制历史注册账户总数。
 
 > 配置文件与账户文件生成在“工作目录”，不是 jar 文件所在目录。Linux 启动脚本会先切换到脚本所在目录。
+
+服务器启动时还会在当前工作目录创建存档目录：
+
+```text
+SaysChat/
+├── Chat/
+│   ├── chat.log       公聊、私聊、公告和附件元数据（人工可读）
+│   └── history.jsonl  登录同步用的结构化历史索引
+├── Attach/            客户端发送的普通文件
+└── Picture/           客户端发送的图片
+```
+
+- 聊天记录追加写入 `SaysChat/Chat/chat.log`，重启服务器不会清空。
+- `history.jsonl` 保存供客户端登录时同步的结构化记录，服务器内存保留最近 1000 条，登录时向每个用户发送其可见的最近 200 条。
+- 从旧版本升级且 `history.jsonl` 为空时，服务器会尝试从 `chat.log` 导入公聊、私聊和公告文字记录；旧附件记录不会导入。
+- 公聊、公告和附件记录对所有用户可见；私聊只发送给发送者和接收者，不会泄露给其他用户。
+- 历史记录中的图片/文件只显示文件名、大小和说明，不重新传输附件内容；需要旧附件时请从服务器 `SaysChat/Picture` 或 `SaysChat/Attach` 获取。
+- 文件消息保存到 `SaysChat/Attach/`，图片消息保存到 `SaysChat/Picture/`；同名文件自动追加 `-1`、`-2` 后缀，不会覆盖旧文件。
+- 存档内容为服务器解密后的明文；Linux/macOS 下目录权限尽量设为 `700`、文件设为 `600`，仍请自行限制工作目录访问权限并做好备份。
 
 ### 2. 第一个管理员
 
@@ -91,7 +118,7 @@ maxOnline=100
 ### 3. 运行电脑客户端
 
 ```bash
-java -jar dist/SaysChatV4-Desktop.jar
+java -jar dist/SaysChatV4.1.0-Desktop.jar
 ```
 
 填写：
@@ -102,18 +129,41 @@ java -jar dist/SaysChatV4-Desktop.jar
 - 用户名、账户密码
 - 首次注册勾选“注册新账号”
 
-登录后：中间为聊天记录，**右侧为在线用户栏**，底部输入框发送消息，`Enter` 发送。
+登录后：中间为聊天记录，**右侧为在线用户栏**，底部输入框发送消息，`Enter` 发送。输入框右侧有 **“图片”** 和 **“文件”** 两个按钮：
 
-关闭电脑客户端窗口时会先弹出确认框“是否退出服务器？”；确认后才发送 `quit` 并立即关闭 TCP 连接，服务器随即把该用户下线，选择“否”则保持在线。JVM 退出时还有关闭连接的兜底处理。
+1. 点击“图片/文件”选择，或直接把**单个图片/文件拖入窗口**；附件会进入“待发送”确认栏，此时不会发送；
+2. 可在输入框填写附件说明；
+3. 点击 **“发送附件”** 才真正读取并发送；点击“取消”放弃本次附件。
+
+> 拖拽一次只接受一个文件；如需发送多个，请逐个添加并确认。
+
+- 发送图片会自动缩放为最长边 1600 像素的 JPEG；文件上限 **5 MB**
+- 收到的图片保存到程序工作目录下的 `SaysChat/Picture/`
+- 收到的其他附件保存到 `SaysChat/Attach/`
+- 聊天记录中会显示实际保存路径
+- **登录后自动同步服务器最近 200 条可见聊天记录**，以“—— 服务器聊天记录 ——”分隔显示；私聊只显示自己参与的对话
+- **收到公告、私聊，或公聊内容包含 `@你的用户名` 时会响系统提示音**；自己的发言、历史记录不会触发提示音
+- 右侧在线用户栏底部有 **“修改密码”** 按钮：输入原密码、新密码和确认新密码；修改成功后当前会话保留，下次登录使用新密码
+
+关闭聊天窗口时会先弹出确认框“是否退出服务器并返回登录页面？”；确认后发送 `quit` 并关闭 TCP 连接，服务器随即把该用户下线，然后返回登录页（自动填入上次服务器、连接密码和用户名），客户端不会退出。选择“否”则保持在线；关闭登录页才会退出客户端。
 
 ### 4. 安装安卓客户端
 
-安装 `dist/SaysChatV4.apk`（debug 签名，需要在系统中允许安装未知来源应用）。
+安装 `dist/SaysChatV4.1.0.apk`（debug 签名，需要在系统中允许安装未知来源应用）。
 
 - 输入服务器 IP / 域名和端口
+- 点击 **附件** 可发送图片或文件；输入框中的文字会作为附件说明
+- 收到的图片自动保存到系统相册 `Pictures/SaysChatV4.1.0/`，并显示缩略图
+- 收到的其他文件自动保存到 `Download/SaysChatV4.1.0/`
+- Android 9 及以下首次连接会请求存储权限；若拒绝授权，可在收到附件后点击消息手动另存
 - 点击左上角 **☰ 在线** 展开/收起**左侧在线用户栏**
 - 点击用户栏右上角 `×` 或列表外遮罩也可收起
-- 管理器头衔显示为 `用户名[管理员]`
+- 折叠栏最底部有 **“修改密码”** 按钮，可输入原密码和新密码
+- 登录后自动同步服务器最近 200 条可见聊天记录；私聊只显示自己参与的对话
+- 收到公告、私聊，或公聊内容包含 `@你的用户名` 时播放系统通知音；历史记录不会触发
+- 管理员头衔显示为 `用户名[管理员]`
+
+图片会压缩为最长边 1600 像素的 JPEG，附件单文件上限 **5 MB**。
 
 物理手机需填写电脑/服务器的局域网 IP，例如 `192.168.1.10`；Android 模拟器访问宿主机使用 `10.0.2.2`。服务器防火墙需放行 TCP 10001：
 
@@ -213,8 +263,8 @@ build.bat
 
 产物：
 
-- `dist/SaysChatV4-Server.jar`
-- `dist/SaysChatV4-Desktop.jar`
+- `dist/SaysChatV4.1.0-Server.jar`
+- `dist/SaysChatV4.1.0-Desktop.jar`
 
 ### 构建安卓 APK（无需 Gradle）
 
@@ -234,7 +284,7 @@ build-apk.bat
 
 说明：
 
-- 构建脚本自动选择最新 build-tools/platform，最低 SDK 21、target SDK 30、versionCode 4、versionName 4.0。
+- 构建脚本自动选择最新 build-tools/platform，最低 SDK 21、target SDK 30、versionCode 11、versionName 4.1.0。
 - **build-tools 31+ 的 `d8`/`apksigner` 需要 JDK 11+**；脚本会在常见路径查找 JDK 17，也可设置 `JAVA17_HOME`：
   ```bat
   set JAVA17_HOME=C:\Program Files\Java\jdk-17
@@ -258,7 +308,7 @@ sha256sum -c SHA256SUMS.txt        # Windows: certutil -hashfile <文件> SHA256
 2. 服务器发送明文头: "SAYS4"(5B) + 随机盐(16B) + PBKDF2迭代次数(4B)
 3. 双方以 PBKDF2-HMAC-SHA1(连接密码, 盐, 120000) 派生 32B 会话密钥
 4. 后续每一帧: [4B大端长度][IV(16B) + AES-128-CBC密文 + HMAC-SHA256(32B)]
-5. 服务器先校验 HMAC，再解密；所有业务消息均为 JSON
+5. 服务器先校验 HMAC，再解密；所有业务消息均为 JSON，图片/文件以 Base64 放在一条 `file` 消息中转发（整帧上限 8 MiB）
 6. 连接密码错误时，服务器返回明文帧 "BADPASS" 后断开
 ```
 
@@ -279,9 +329,11 @@ sha256sum -c SHA256SUMS.txt        # Windows: certutil -hashfile <文件> SHA256
 - 连接密码同时是会话密钥的派生来源，必须通过安全渠道告知用户；泄露后应修改配置并重启服务器。
 - 协议没有证书/公钥体系，无法抵御能够主动中间人劫持并持有连接密码的攻击者；不要穿过不可信代理使用。
 - 会话密钥无前向保密（每次连接使用新的随机盐，但没有 DH 密钥交换）。
-- 未实现消息历史云端保存、离线消息、群组、文件传输等；重启服务器会清空在线状态和禁言状态，账户/管理员/封禁状态保留。
+- 服务器会把聊天记录和附件持久化到工作目录 `SaysChat/`（`Chat/chat.log`、`Chat/history.jsonl`、`Attach/`、`Picture/`），重启后仍保留。登录时自动同步最近 200 条可见记录；暂未提供离线消息。
+- 图片/文件在服务器端会解密后保存：图片进 `SaysChat/Picture`，普通文件进 `SaysChat/Attach`，单文件上限 5 MB。电脑客户端另存到本地 `SaysChat/Picture` 或 `SaysChat/Attach`，安卓端保存到系统相册或 Download 目录。请勿打开来源不明的可执行文件。
 - 提供的 APK 使用 debug 签名，仅适合内测和自用；分发前建议替换 release 签名。
-- 服务器日志会记录聊天/私聊内容，部署时请控制日志文件访问权限。
+- 服务器聊天记录包含公聊、私聊、公告和附件元数据，`chat.log` 与 `history.jsonl` 均为明文；部署时应限制 `SaysChat/` 目录和 `Chat/` 下文件的访问权限。
+- 电脑端把上次成功连接的服务器、端口、连接密码和用户名保存到 `~/.sayschat-v4.1.0/connection.properties`，安卓端保存到应用私有 SharedPreferences；账户密码不会保存。连接密码属于本地明文存储，请保护操作系统账户安全。电脑端首次启动 4.1.0 时会自动复制 4.0.1 的连接配置。
 
 ## 九、测试工具（开发用）
 
@@ -289,18 +341,18 @@ sha256sum -c SHA256SUMS.txt        # Windows: certutil -hashfile <文件> SHA256
 
 ```bash
 # 编译（Windows 用 ; 分隔 classpath，Linux/macOS 用 :）
-javac -encoding UTF-8 -cp dist/SaysChatV4-Server.jar -d tools/classes tools/*.java
+javac -encoding UTF-8 -cp dist/SaysChatV4.1.0-Server.jar -d tools/classes tools/*.java
 ```
 
 - **SeedAdmin**：服务器停止时预置管理员账户，适合无控制台场景。
   ```bash
-  java -cp "dist/SaysChatV4-Server.jar;tools/classes" \
+  java -cp "dist/SaysChatV4.1.0-Server.jar;tools/classes" \
        sayschat.tools.SeedAdmin . admin admin-pass-123
   ```
 - **Probe**：登录一次并输出角色/全员禁言/在线列表，用于重启持久化验证。
 - **SmokeTest**：端到端测试（认证失败、公聊、私聊、公告、禁言、全员禁言、权限授予、踢人、封禁/解封、IP、客户端 `/stop` 拒绝等 30+ 项断言）。使用前需要干净的服务端数据目录、已存在的管理员账户，且 bob/carol/dave 未注册：
   ```bash
-  java -cp "dist/SaysChatV4-Server.jar;tools/classes" \
+  java -cp "dist/SaysChatV4.1.0-Server.jar;tools/classes" \
        sayschat.tools.SmokeTest 127.0.0.1 10001 <连接密码> admin admin-pass-123
   ```
 
@@ -338,4 +390,4 @@ javac -encoding UTF-8 -cp dist/SaysChatV4-Server.jar -d tools/classes tools/*.ja
 
 ---
 
-SaysChatV4 · Java 8 · TCP · AES-128-CBC + HMAC-SHA256 · Android 5.0+
+SaysChatV4.1.0 · Java 8 · TCP · AES-128-CBC + HMAC-SHA256 · Android 5.0+

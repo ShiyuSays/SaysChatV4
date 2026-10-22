@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-#  SaysChatV4 服务器后台启动脚本（Linux）
+#  SaysChatV4.1.0 服务器后台启动脚本（Linux）
 #  用法: ./start-server-daemon.sh
 #  停止: ./stop-server.sh
 #  日志: logs/server.log（首次启动的连接密码也在日志中）
@@ -9,8 +9,8 @@ set -e
 cd "$(dirname "$0")"
 umask 077
 
-JAR="dist/SaysChatV4-Server.jar"
-[ -f "$JAR" ] || JAR="SaysChatV4-Server.jar"
+JAR="dist/SaysChatV4.1.0-Server.jar"
+[ -f "$JAR" ] || JAR="SaysChatV4.1.0-Server.jar"
 if [ ! -f "$JAR" ]; then
     echo "错误: 找不到服务器 jar，请先运行 ./build.sh 构建。"
     exit 1
@@ -38,7 +38,7 @@ fi
 mkdir -p logs
 {
     echo ""
-    echo "===== $(date '+%Y-%m-%d %H:%M:%S') 启动 SaysChatV4 ====="
+    echo "===== $(date '+%Y-%m-%d %H:%M:%S') 启动 SaysChatV4.1.0 ====="
 } >> logs/server.log
 
 nohup "$JAVA" -Dfile.encoding=UTF-8 -jar "$JAR" >> logs/server.log 2>&1 &

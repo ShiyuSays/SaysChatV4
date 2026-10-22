@@ -14,7 +14,7 @@ import java.util.Map;
  * 并且 bob / carol / dave 在该服务器目录中尚未注册。
  *
  * 用法:
- *   java -cp dist/SaysChatV4-Server.jar;tools/classes \
+ *   java -cp dist/SaysChatV4.1.0-Server.jar;tools/classes \
  *        sayschat.tools.SmokeTest 127.0.0.1 10001 <连接密码> <管理员名> <管理员密码>
  */
 public final class SmokeTest {

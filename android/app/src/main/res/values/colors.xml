@@ -10,6 +10,7 @@
     <color name="divider">#E6E6E6</color>
     <color name="panel_header">#EEF0F8</color>
     <color name="admin_color">#B26A00</color>
+    <color name="attachment_color">#00695C</color>
     <color name="danger">#C62828</color>
     <color name="success">#2E7D32</color>
 </resources>

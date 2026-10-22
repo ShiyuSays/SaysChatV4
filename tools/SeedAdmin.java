@@ -6,7 +6,7 @@ import java.io.File;
 
 /**
  * 测试/引导工具：预置一个管理员账户（仅开发用，不打进 jar）。
- * 用法: java -cp dist/SaysChatV4-Server.jar;tools/classes \
+ * 用法: java -cp dist/SaysChatV4.1.0-Server.jar;tools/classes \
  *       sayschat.tools.SeedAdmin [dir] [user] [pass]
  * 说明: 正常流程是先让用户在客户端注册，再到服务器控制台 /admin 用户名；
  *       本工具用于测试，或服务器无控制台时在“服务器停止状态”下引导首个管理员。

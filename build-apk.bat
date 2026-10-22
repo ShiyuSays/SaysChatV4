@@ -1,13 +1,13 @@
 @echo off
 rem ============================================================
-rem  SaysChatV4 Android APK build (Windows, without Gradle)
+rem  SaysChatV4.1.0 Android APK build (Windows, without Gradle)
 rem  Requires:
 rem    - Android SDK with build-tools and platforms/android-*
 rem    - JDK 8+ for javac; build-tools 31+ need JDK 17 for d8/apksigner
 rem  Usage:
 rem    set ANDROID_SDK_ROOT=C:\path\to\android-sdk
 rem    build-apk.bat
-rem  Output: dist\SaysChatV4.apk (debug signed, installable)
+rem  Output: dist\SaysChatV4.1.0.apk (debug signed, installable)
 rem ============================================================
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
@@ -61,7 +61,7 @@ if not defined JDK17 if exist "C:\Program Files\Java\jdk-25\bin\java.exe" set "J
 if exist build-apk rmdir /s /q build-apk
 mkdir build-apk\gen build-apk\classes build-apk\dex
 if not exist dist mkdir dist
-del /q dist\SaysChatV4.apk dist\SaysChatV4-unsigned.apk dist\SaysChatV4-aligned.apk 2>nul
+del /q dist\SaysChatV4.1.0.apk dist\SaysChatV4.1.0-unsigned.apk dist\SaysChatV4.1.0-aligned.apk 2>nul
 
 echo.
 echo [1/5] Compiling Android resources...
@@ -70,8 +70,8 @@ if errorlevel 1 exit /b 1
 "%BT%\aapt2.exe" link -I "%PF%\android.jar" ^
     --manifest android\app\src\main\AndroidManifest.xml ^
     --min-sdk-version 21 --target-sdk-version 30 ^
-    --version-code 4 --version-name 4.0 ^
-    --java build-apk\gen -o dist\SaysChatV4-unsigned.apk build-apk\res.zip
+    --version-code 11 --version-name 4.1.0 ^
+    --java build-apk\gen -o dist\SaysChatV4.1.0-unsigned.apk build-apk\res.zip
 if errorlevel 1 exit /b 1
 
 echo [2/5] Compiling Java sources...
@@ -95,9 +95,9 @@ if not "%D8EXIT%"=="0" exit /b %D8EXIT%
 
 echo [4/5] Packaging + aligning...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "Add-Type -AssemblyName System.IO.Compression.FileSystem; $apk=(Resolve-Path 'dist\SaysChatV4-unsigned.apk').Path; $dex=(Resolve-Path 'build-apk\dex\classes.dex').Path; $z=[System.IO.Compression.ZipFile]::Open($apk,'Update'); try { $old=$z.GetEntry('classes.dex'); if ($old) { $old.Delete() }; [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($z,$dex,'classes.dex') | Out-Null } finally { $z.Dispose() }"
+  "Add-Type -AssemblyName System.IO.Compression.FileSystem; $apk=(Resolve-Path 'dist\SaysChatV4.1.0-unsigned.apk').Path; $dex=(Resolve-Path 'build-apk\dex\classes.dex').Path; $z=[System.IO.Compression.ZipFile]::Open($apk,'Update'); try { $old=$z.GetEntry('classes.dex'); if ($old) { $old.Delete() }; [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($z,$dex,'classes.dex') | Out-Null } finally { $z.Dispose() }"
 if errorlevel 1 exit /b 1
-"%BT%\zipalign.exe" -f 4 dist\SaysChatV4-unsigned.apk dist\SaysChatV4-aligned.apk
+"%BT%\zipalign.exe" -f 4 dist\SaysChatV4.1.0-unsigned.apk dist\SaysChatV4.1.0-aligned.apk
 if errorlevel 1 exit /b 1
 
 echo [5/5] Signing APK...
@@ -112,18 +112,18 @@ if not exist "%KEYSTORE%" (
 if defined JDK17 set "JAVA_HOME=%JDK17%"
 call "%BT%\apksigner.bat" sign --ks "%KEYSTORE%" ^
     --ks-pass pass:android --key-pass pass:android ^
-    --out dist\SaysChatV4.apk dist\SaysChatV4-aligned.apk
+    --out dist\SaysChatV4.1.0.apk dist\SaysChatV4.1.0-aligned.apk
 set "SIGNEXIT=%ERRORLEVEL%"
 if not "%SIGNEXIT%"=="0" (
     set "JAVA_HOME="
     exit /b %SIGNEXIT%
 )
-call "%BT%\apksigner.bat" verify dist\SaysChatV4.apk
+call "%BT%\apksigner.bat" verify dist\SaysChatV4.1.0.apk
 set "VERIFYEXIT=%ERRORLEVEL%"
 set "JAVA_HOME="
 if not "%VERIFYEXIT%"=="0" exit /b %VERIFYEXIT%
 
-del /q dist\SaysChatV4-unsigned.apk dist\SaysChatV4-aligned.apk dist\SaysChatV4.apk.idsig 2>nul
+del /q dist\SaysChatV4.1.0-unsigned.apk dist\SaysChatV4.1.0-aligned.apk dist\SaysChatV4.1.0.apk.idsig 2>nul
 echo.
-echo Build finished: dist\SaysChatV4.apk
+echo Build finished: dist\SaysChatV4.1.0.apk
 endlocal

@@ -15,20 +15,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * SaysChatV4 服务器端。
+ * SaysChatV4.1.0 服务器端。
  *
  * <ul>
  *   <li>默认监听 TCP 10001，端口可在 sayschat-server.conf 中修改；</li>
  *   <li>首次启动在当前目录生成端口 + 连接密码配置文件；</li>
  *   <li>账户保存在当前目录 sayschat-accounts.dat；</li>
+ *   <li>聊天记录和附件保存在当前目录 SaysChat 下的 Chat/Attach/Picture；</li>
  *   <li>服务器控制台与管理员客户端共用命令执行逻辑。</li>
  * </ul>
  */
 public final class SaysChatServer {
-    public static final String VERSION = "4.0";
+    public static final String VERSION = "4.1.0";
     private static final String ANSI_GREEN = "\u001B[32m";
     private static final String ANSI_RESET = "\u001B[0m";
     private static final String[] HELP_LINES = {
@@ -51,6 +53,7 @@ public final class SaysChatServer {
 
     final ServerConfig config;
     final AccountStore accounts;
+    final ChatArchive archive;
     final ServerSocket serverSocket;
     final Map<String, ClientHandler> clients = new LinkedHashMap<String, ClientHandler>();
 
@@ -59,20 +62,24 @@ public final class SaysChatServer {
     volatile boolean allMuted;
 
     private final AtomicBoolean shutdownDone = new AtomicBoolean(false);
+    private volatile Thread idleMonitor;
 
-    private SaysChatServer(ServerConfig config, AccountStore accounts) throws IOException {
+    private SaysChatServer(ServerConfig config, AccountStore accounts,
+                           ChatArchive archive) throws IOException {
         this.config = config;
         this.accounts = accounts;
+        this.archive = archive;
         ServerSocket ss = new ServerSocket();
         ss.setReuseAddress(true);
         ss.bind(new InetSocketAddress(config.port));
         this.serverSocket = ss;
+        startIdleMonitor();
     }
 
     public static void main(String[] args) {
         final File dir = new File(System.getProperty("user.dir")).getAbsoluteFile();
         System.out.println("============================================================");
-        System.out.println("  SaysChatV4 服务器  v" + VERSION + "  (TCP + AES/HMAC)");
+        System.out.println("  SaysChatV4.1.0 服务器  (TCP + AES/HMAC)");
         System.out.println("  工作目录: " + dir);
         System.out.println("============================================================");
 
@@ -80,7 +87,8 @@ public final class SaysChatServer {
         try {
             ServerConfig cfg = ServerConfig.load(dir);
             AccountStore accounts = new AccountStore(dir);
-            server = new SaysChatServer(cfg, accounts);
+            ChatArchive archive = new ChatArchive(dir);
+            server = new SaysChatServer(cfg, accounts, archive);
         } catch (Exception e) {
             System.out.println("[启动失败] " + e.getMessage());
             System.exit(1);
@@ -95,6 +103,12 @@ public final class SaysChatServer {
 
         System.out.println("[服务器] 正在监听 TCP 端口 " + server.config.port + " ...");
         System.out.println("[服务器] 最大同时在线人数: " + server.config.maxOnline);
+        System.out.println("[服务器] 挂机踢出: " + (server.config.idleMinutes <= 0
+                ? "已关闭" : server.config.idleMinutes + " 分钟未发言自动踢出"));
+        System.out.println("[服务器] 同一 IP 登录上限: " + server.config.ipAccountLimit + " 个账户");
+        System.out.println("[存储] 聊天记录: " + server.archive.chatFile().getAbsolutePath());
+        System.out.println("[存储] 文件目录: " + server.archive.attachDir().getAbsolutePath());
+        System.out.println("[存储] 图片目录: " + server.archive.pictureDir().getAbsolutePath());
         System.out.println("[服务器] 控制台输入 /help 查看命令，/stop 关闭服务器");
         if (!server.accounts.hasAdmin()) {
             System.out.println("[提示] 当前还没有管理员。请让用户注册后，在控制台执行 /admin 用户名");
@@ -312,6 +326,7 @@ public final class SaysChatServer {
             m.put("from", actor(requester));
             m.put("msg", args);
             broadcast(m);
+            archive.says(actor(requester), args);
             if (console) reply(requester, "公告已广播: " + args);
             log("[公告] " + actor(requester) + ": " + args);
             return;
@@ -458,6 +473,8 @@ public final class SaysChatServer {
         broadcastSys("服务器正在关闭...");
         log("[服务器] 控制台执行 /stop，正在关闭...");
         running = false;
+        Thread monitor = idleMonitor;
+        if (monitor != null) monitor.interrupt();
         try {
             serverSocket.close();
         } catch (IOException ignored) {
@@ -468,6 +485,8 @@ public final class SaysChatServer {
     void shutdown() {
         if (!shutdownDone.compareAndSet(false, true)) return;
         running = false;
+        Thread monitor = idleMonitor;
+        if (monitor != null) monitor.interrupt();
         try {
             serverSocket.close();
         } catch (IOException ignored) {
@@ -481,6 +500,46 @@ public final class SaysChatServer {
             h.close();
         }
         System.out.println("[服务器] 已关闭。");
+    }
+
+    /** 每秒检查一次在线用户的最后发言时间，超时后踢出。 */
+    private void startIdleMonitor() {
+        if (config.idleMinutes <= 0) return;
+        final long timeoutNanos = TimeUnit.MINUTES.toNanos(config.idleMinutes);
+        Thread monitor = new Thread(new Runnable() {
+            public void run() {
+                while (running) {
+                    try {
+                        Thread.sleep(1000L);
+                    } catch (InterruptedException e) {
+                        if (!running) return;
+                    }
+                    if (!running) return;
+                    List<ClientHandler> snapshot;
+                    synchronized (clients) {
+                        snapshot = new ArrayList<ClientHandler>(clients.values());
+                    }
+                    long now = System.nanoTime();
+                    for (ClientHandler h : snapshot) {
+                        h.kickIfIdle(now, timeoutNanos, config.idleMinutes);
+                    }
+                }
+            }
+        }, "sayschat-idle-monitor");
+        monitor.setDaemon(true);
+        idleMonitor = monitor;
+        monitor.start();
+    }
+
+    /** 统计某个 IP 当前已登录的账户数；调用方通常已持有 clients 锁。 */
+    int ipAccountCount(String ip) {
+        synchronized (clients) {
+            int count = 0;
+            for (ClientHandler h : clients.values()) {
+                if (ip.equals(h.ip())) count++;
+            }
+            return count;
+        }
     }
 
     private ClientHandler find(String name) {

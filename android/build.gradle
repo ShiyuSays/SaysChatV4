@@ -1,4 +1,4 @@
-// SaysChatV4 安卓客户端
+// SaysChatV4.1.0 安卓客户端
 // 推荐用 Android Studio 打开 android/ 目录构建；
 // 或无 Gradle 命令行构建：在项目根目录运行 build-apk.bat / build-apk.sh。
 buildscript {

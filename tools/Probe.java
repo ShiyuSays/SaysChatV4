@@ -7,7 +7,7 @@ import java.util.Map;
 
 /**
  * 开发用小工具：登录一次并打印账户角色与在线用户，用于验证账户持久化/重启后的登录。
- * 用法: java -cp dist/SaysChatV4-Server.jar;tools/classes \
+ * 用法: java -cp dist/SaysChatV4.1.0-Server.jar;tools/classes \
  *       sayschat.tools.Probe <host> <port> <连接密码> <用户名> <密码> [register]
  */
 public final class Probe {

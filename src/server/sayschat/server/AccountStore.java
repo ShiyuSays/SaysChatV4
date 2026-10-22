@@ -101,6 +101,30 @@ public final class AccountStore {
         save();
     }
 
+    /** 修改密码：生成新盐和新哈希；写盘失败时回滚内存中的账户。 */
+    public synchronized void changePassword(String name, String password) throws IOException {
+        Account a = map.get(name);
+        if (a == null) throw new IOException("用户不存在");
+        byte[] oldSalt = a.salt;
+        byte[] oldHash = a.hash;
+        int oldIterations = a.iterations;
+        int iterations = Crypto.PBKDF2_ITERATIONS;
+        byte[] salt = Crypto.randomBytes(Crypto.SALT_BYTES);
+        byte[] hash = Crypto.pbkdf2(password.toCharArray(), salt,
+                iterations, Crypto.ACCOUNT_HASH_BYTES);
+        a.salt = salt;
+        a.hash = hash;
+        a.iterations = iterations;
+        try {
+            save();
+        } catch (IOException e) {
+            a.salt = oldSalt;
+            a.hash = oldHash;
+            a.iterations = oldIterations;
+            throw e;
+        }
+    }
+
     /** 校验账户密码，使用恒定时间比较。 */
     public boolean checkPassword(String name, String password) {
         byte[] salt;

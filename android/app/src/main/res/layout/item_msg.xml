@@ -15,6 +15,17 @@
         android:textColor="#888888"
         android:textSize="11sp" />
 
+    <ImageView
+        android:id="@+id/ivAttachment"
+        android:layout_width="match_parent"
+        android:layout_height="180dp"
+        android:layout_marginTop="5dp"
+        android:adjustViewBounds="true"
+        android:background="#EEF1F5"
+        android:contentDescription="图片附件"
+        android:scaleType="fitCenter"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/tvBody"
         android:layout_width="match_parent"

@@ -12,8 +12,8 @@ import java.io.OutputStream;
  * 握手完成后，负载统一是 {@link Crypto.Session} 加密后的数据。
  */
 public final class FrameIO {
-    /** 单帧上限，足以容纳 512 KiB 数据；聊天正文另有更严格的长度限制。 */
-    public static final int MAX_FRAME = 512 * 1024;
+    /** 单帧上限；附件消息可接近该值，普通聊天正文另有 4096 字符限制。 */
+    public static final int MAX_FRAME = FileTransfer.MAX_FRAME_BYTES;
 
     private FrameIO() {
     }
